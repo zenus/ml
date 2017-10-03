@@ -1,0 +1,79 @@
+import math
+import random
+import matplotlib.pyplot as plt
+import numpy as np
+
+b = np.array([0, 0, 1])
+x = np.array([
+    (0.697, 0.460, 1),
+    (0.774, 0.376, 1),
+    (0.634, 0.264, 1),
+    (0.608, 0.318, 1),
+    (0.556, 0.215, 1),
+    (0.403, 0.237, 1),
+    (0.481, 0.149, 1),
+    (0.437, 0.211, 1),
+    (0.666, 0.091, 1),
+    (0.243, 0.267, 1),
+    (0.245, 0.057, 1),
+    (0.343, 0.099, 1),
+    (0.639, 0.161, 1),
+    (0.657, 0.198, 1),
+    (0.360, 0.370, 1),
+    (0.593, 0.042, 1),
+    (0.719, 0.103, 1)
+    ])
+y = np.array([
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0]
+])
+
+old_l = 0
+n = 0
+
+while 1:
+    cur_l = 0
+    bx = np.zeros((17, 1))
+    for i in range(1, 17):
+        bx[i] = np.dot(b, x[i, :])
+        cur_l += ((-y[i] * bx[i]) + np.log1p(1 + np.exp(bx[i])))
+    if abs((cur_l - old_l)) < 0.01:
+        break
+    n += 1
+    old_l = cur_l
+    d1 = 0
+    d2 = 0
+    p1 = np.zeros((17, 1))
+    for i in range(1, 17):
+        p1[i] = 1 - 1 / (1 + np.exp(bx[i]))
+        d1 = d1 - x[i, :] * (y[i] - p1[i])
+        d2 = d2 + np.dot(x[i, :], x[i, :].T) * p1[i] * (1 - p1[i])
+    b = b - d1/d2
+
+plt.plot(x[0:8, 0], x[0:8, 1], 'og')
+plt.plot(x[9:17, 0], x[9:17, 1], '+r')
+# ply =-(0.1 * b[0] + b[2]) / b[1];
+# pry =-(0.9 * b[0] + b[2]) / b[1];
+density = np.arange(0.1, 0.9, 0.01)
+sweet = -(density * b[0] + b[2]) / b[1]
+# print(sweet)
+plt.plot(density, sweet)
+# line([0.1 0.9],[ply pry]);
+plt.ylabel('sugar')
+plt.xlabel('density')
+plt.show()
