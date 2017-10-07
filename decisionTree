@@ -1,0 +1,197 @@
+import matplotlib.pyplot as plt
+from numpy import linalg as la
+import numpy as np
+from pandas import Series, DataFrame
+import pandas as pd
+
+import math
+
+
+def dd(data):
+    print(data)
+    # print('\n'.join(['%s:%s' % item for item in data.__dict__.items()])
+    exit(0)
+
+
+def doo(obj):
+    # print(data)
+    print('\n'.join(['%s:%s' % item for item in obj.__dict__.items()]))
+    exit(0)
+
+
+def dp(obj):
+    # print(data)
+    print('\n'.join(['%s:%s' % item for item in obj.__dict__.items()]))
+
+
+# 属性类
+class property:
+    def __init__(self, idnum, attribute):
+        self.is_continuity = False  # 连续型属性标记
+        self.attribute = attribute  # 属性标签
+        self.subattributes = []  # 属性子标签
+        self.id = idnum  # 属性排在输入文本的第几位
+        self.index = {}  # 属性子标签的索引值
+
+
+# 属性类
+class Node:
+    def __init__(self, key, value, threshold=0):
+        self.key = key
+        self.value = value
+        self.children = []
+        self.threshold = threshold
+
+
+class DTree:
+    def __init__(self):
+        self.root = None
+
+    def put(self, node, key, value, threshold=0):
+        child = Node(key, value, threshold)
+        if node:
+            node.children.append(child)
+        else:
+            self.root = child
+        return child
+
+    def list(self, node=None, i=0):
+        if not node:
+            node = self.root
+        print("-" * i + 'key:' + str(node.key) + ' value:' + node.value + ' threshold:' + str(node.threshold))
+        if node.children:
+            i = i + 1
+            for child in node.children:
+                self.list(child, i)
+
+    def predict(self, x):
+        node = self.root
+        if x:
+            while node:
+                if node.children:
+                    key = x[node.value]
+                    if node.threshold and (type(key) == float or type(key) == int):
+                        key = "大于" if key > node.threshold else '小于'
+                        # if node.children:
+                    for child in node.children:
+                        if child.key == key:
+                            node = child
+                else:
+                    return node.value
+
+
+# 决策树生成类
+class dtree():
+    '''
+    构造函数
+    filename:输入文件名
+    haveID:输入是否带序号
+    property_set：为空则计算全部属性，否则记录set中的属性
+    '''
+
+    def __init__(self):
+
+        self.tree = DTree()
+        pdata = pd.DataFrame(pd.read_csv('watermelon.csv'))
+        data = pdata.drop(['编号'], axis=1)
+        self.build_tree(data, data['好坏'], '好瓜')
+        self.tree.list()
+
+    def build_tree(self, x, y, yValue):
+        queue = []
+        entity = {'data': x, 'node': None, 'key': '', 'threshold': 0, 'ylabel': y.name}
+        queue.append(entity)
+        while queue:
+            item = queue.pop(-len(queue))
+            # 结束条件1：所有样本同一分类
+            classes = item['data'].groupby(y.name).size()
+            if classes.count() == 1:
+                self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+                continue
+                # 结束条件2：所有样本相同属性，选择分类数多的一类作为分类
+            if all(len(item['data'].groupby(i).size().index.values) == 1 for i in item['data'].columns.values):
+                self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+                continue
+
+            # 信息增益选择最优属性与阈值
+            tag, threshold = self.entropy_select(item['data'], item['ylabel'], yValue)
+            new_node = self.tree.put(item['node'], item['key'], tag, threshold)
+            # 判断是否是连续属性
+            if item['data'].dtypes[tag] == 'float64':
+                tmp_data = item['data'].copy()
+                tmp_data[tag] = (tmp_data[tag] - threshold) > 0
+                for name, group in tmp_data.groupby([tag]):
+                    key = '大于'
+                    if not name:
+                        key = '小于'
+                    sub_group = group.drop([tag], axis=1)
+                    entity = {'data': sub_group, 'node': new_node, 'key': key, 'threshold': threshold, 'ylabel': y.name}
+                    queue.append(entity)
+            else:
+                for name, group in item['data'].groupby([tag]):
+                    sub_group = group.drop([tag], axis=1)
+                    entity = {'data': sub_group, 'node': new_node, 'key': name, 'threshold': 0, 'ylabel': y.name}
+                    queue.append(entity)
+
+
+    def entropy_select(self, data, yLabel, yValue):
+        # 分离散和连续型分别计算信息增益，选择最大的一个
+        max_ent = -10000
+        keys = data.columns.tolist()
+        keys.remove(yLabel)
+        for i in keys:
+            if data.dtypes[i] == 'float64':
+                tmax_ent = -10000
+                list_data = data.copy()
+                xlist = list_data[i].values
+                xlist.sort()
+                # 连续型求出相邻大小值的平局值作为待选的最佳阈值
+                for j in range(0, len(xlist) - 1):
+                    xlist[j] = (xlist[j + 1] + xlist[j]) / 2
+                for j in range(0, len(xlist) - 1):
+                    if i and xlist[j] == xlist[j - 1]:
+                        continue
+                    tmp_data = data.copy()
+                    tmp_data[i] = (tmp_data[i] - xlist[j]) > 0
+                    counts = tmp_data.count()
+                    cur_ent = 0
+                    group_items = tmp_data.groupby([i, yLabel]).size()
+                    # dd(group_items)
+                    for k in group_items.index.levels[0]:
+                        sub_sum = group_items[k].sum()
+                        if sub_sum > 0:
+                            p = 0
+                            if yValue in group_items[k].index:
+                                p = group_items[k][yValue] / sub_sum
+                            lo = sub_sum / counts[i]
+                            cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
+                                                                                          2)) * sub_sum / counts[i]
+                    if cur_ent > tmax_ent:
+                        tmax_ent = cur_ent
+                        tmp_threshold = xlist[j]
+                if tmax_ent > max_ent:
+                    max_ent = tmax_ent
+                    bestprop = i
+                    best_threshold = tmp_threshold
+            else:
+                # 直接统计并计算
+                cur_ent = 0
+                counts = data.count()
+                group_items = data.groupby([i, yLabel]).size()
+                for j in group_items.index.levels[0]:
+                    sub_sum = group_items[j].sum()
+                    if sub_sum > 0:
+                        p = 0
+                        if yValue in group_items[j].index:
+                            p = group_items[j][yValue] / sub_sum
+                        cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
+                                                                                      2)) * sub_sum / counts[i]
+                if cur_ent > max_ent:
+                    max_ent = cur_ent
+                    bestprop = i
+                    best_threshold = 0
+
+        return bestprop, best_threshold
+
+
+link = dtree()
