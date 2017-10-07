@@ -1,0 +1,89 @@
+import math
+import random
+from sklearn import datasets
+import matplotlib.pyplot as plt
+from numpy import linalg as la
+import numpy as np
+
+x = np.array([
+    (0.697, 0.460, 1),
+    (0.774, 0.376, 1),
+    (0.634, 0.264, 1),
+    (0.608, 0.318, 1),
+    (0.556, 0.215, 1),
+    (0.403, 0.237, 1),
+    (0.481, 0.149, 1),
+    (0.437, 0.211, 1),
+    (0.666, 0.091, 1),
+    (0.243, 0.267, 1),
+    (0.245, 0.057, 1),
+    (0.343, 0.099, 1),
+    (0.639, 0.161, 1),
+    (0.657, 0.198, 1),
+    (0.360, 0.370, 1),
+    (0.593, 0.042, 1),
+    (0.719, 0.103, 1)
+    ])
+y = np.array([
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [1],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0],
+    [0]
+])
+
+# linearDiscriminantAnalysis.py
+u = np.zeros([2, 2])
+u[0] = np.average(x[0:7, :2], axis=0)
+u[1] = np.average(x[8:16, :2], axis=0)
+sw = np.zeros([2, 2])
+
+for i in range(0, 16):
+    s = np.add(x[i][:2], -u[int(i > 8)])
+    s = s.reshape(2, 1)
+    sw += np.dot(s, s.T)
+U, S, V = la.svd(sw)
+fS = la.inv(np.diag(S))
+fsw = np.dot(np.dot(V, fS), U)
+w = np.dot(fsw, (u[0]-u[1]))
+
+plt.plot(x[0:8, 0], x[0:8, 1], 'og')
+plt.plot(x[9:16, 0], x[9:16, 1], '+r')
+density = np.arange(0.1, 0.9, 0.01)
+# Wt*x + b = y
+# b = y - wt*x
+# print(np.matrix(x[1, :2]))
+# print(np.matrix(w.T))
+sweet = -(density * w[0] - 0.01) / w[1]
+# print(sweet)
+plt.plot(density, sweet)
+# line([0.1 0.9],[ply pry]);
+plt.ylabel('sugar')
+plt.xlabel('density')
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
