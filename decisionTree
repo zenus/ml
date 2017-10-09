@@ -3,6 +3,7 @@ from numpy import linalg as la
 import numpy as np
 from pandas import Series, DataFrame
 import pandas as pd
+import copy
 
 import math
 
@@ -24,14 +25,30 @@ def dp(obj):
     print('\n'.join(['%s:%s' % item for item in obj.__dict__.items()]))
 
 
-# 属性类
-class property:
-    def __init__(self, idnum, attribute):
-        self.is_continuity = False  # 连续型属性标记
-        self.attribute = attribute  # 属性标签
-        self.subattributes = []  # 属性子标签
-        self.id = idnum  # 属性排在输入文本的第几位
-        self.index = {}  # 属性子标签的索引值
+def tree_predict(tree, data):
+    if data:
+        while type(tree) == dict:
+            for key in tree:
+                if type(tree[key]) == dict:
+                    tree = tree[key][data[key]]
+                else:
+                    return tree[key]
+        return tree
+    return []
+
+
+def clean_tree(tree):
+    queue = [tree]
+    while queue:
+        tree = queue.pop(-len(queue))
+        if type(tree) == dict:
+            for key in tree:
+                if key == 'test':
+                    del tree[key]
+                    if not tree:
+                        break
+                else:
+                    queue.append(tree[key])
 
 
 # 属性类
@@ -81,6 +98,126 @@ class DTree:
 
 
 # 决策树生成类
+def entropy_select(data, yLabel, yValue):
+    # 分离散和连续型分别计算信息增益，选择最大的一个
+    max_ent = -10000
+    best_prop = 0
+    best_threshold = 0
+    keys = data.columns.tolist()
+    keys.remove(yLabel)
+    for i in keys:
+        if data.dtypes[i] == 'float64':
+            tmax_ent = -10000
+            list_data = data.copy()
+            xlist = list_data[i].values
+            xlist.sort()
+            # 连续型求出相邻大小值的平局值作为待选的最佳阈值
+            for j in range(0, len(xlist) - 1):
+                xlist[j] = (xlist[j + 1] + xlist[j]) / 2
+            for j in range(0, len(xlist) - 1):
+                if i and xlist[j] == xlist[j - 1]:
+                    continue
+                tmp_data = data.copy()
+                tmp_data[i] = (tmp_data[i] - xlist[j]) > 0
+                counts = tmp_data.count()
+                cur_ent = 0
+                group_items = tmp_data.groupby([i, yLabel]).size()
+                # dd(group_items)
+                for k in group_items.index.levels[0]:
+                    sub_sum = group_items[k].sum()
+                    if sub_sum > 0:
+                        p = 0
+                        if yValue in group_items[k].index:
+                            p = group_items[k][yValue] / sub_sum
+                        cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
+                                                                                      2)) * sub_sum / counts[i]
+                if cur_ent > tmax_ent:
+                    tmax_ent = cur_ent
+                    tmp_threshold = xlist[j]
+            if tmax_ent > max_ent:
+                max_ent = tmax_ent
+                best_prop = i
+                best_threshold = tmp_threshold
+        else:
+            # 直接统计并计算
+            cur_ent = 0
+            counts = data.count()
+            group_items = data.groupby([i, yLabel]).size()
+            for j in group_items.index.levels[0]:
+                sub_sum = group_items[j].sum()
+                if sub_sum > 0:
+                    p = 0
+                    if yValue in group_items[j].index:
+                        p = group_items[j][yValue] / sub_sum
+                    cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
+                                                                                  2)) * sub_sum / counts[i]
+            if cur_ent > max_ent:
+                max_ent = cur_ent
+                best_prop = i
+                best_threshold = 0
+
+    return best_prop, best_threshold
+
+
+# 决策树生成类
+def gini_select(data, yLabel, yValue):
+    # 分离散和连续型分别计算信息增益，选择最大的一个
+    max_ent = -10000
+    keys = data.columns.tolist()
+    best_prop = 0
+    best_threshold = 0
+    keys.remove(yLabel)
+    for i in keys:
+        if data.dtypes[i] == 'float64':
+            tmax_ent = -10000
+            list_data = data.copy()
+            xlist = list_data[i].values
+            xlist.sort()
+            # 连续型求出相邻大小值的平局值作为待选的最佳阈值
+            for j in range(0, len(xlist) - 1):
+                xlist[j] = (xlist[j + 1] + xlist[j]) / 2
+            for j in range(0, len(xlist) - 1):
+                if i and xlist[j] == xlist[j - 1]:
+                    continue
+                tmp_data = data.copy()
+                tmp_data[i] = (tmp_data[i] - xlist[j]) > 0
+                counts = tmp_data.count()
+                cur_ent = 0
+                group_items = tmp_data.groupby([i, yLabel]).size()
+                for k in group_items.index.levels[0]:
+                    sub_sum = group_items[k].sum()
+                    if sub_sum > 0:
+                        p = 0
+                        if yValue in group_items[k].index:
+                            p = group_items[k][yValue] / sub_sum
+                        cur_ent += (p * p + (1 - p) * (1 - p)) * sub_sum / counts[i]
+                if cur_ent > tmax_ent:
+                    tmax_ent = cur_ent
+                    tmp_threshold = xlist[j]
+            if tmax_ent > max_ent:
+                max_ent = tmax_ent
+                best_prop = i
+                best_threshold = tmp_threshold
+        else:
+            # 直接统计并计算
+            cur_ent = 0
+            counts = data.count()
+            group_items = data.groupby([i, yLabel]).size()
+            for j in group_items.index.levels[0]:
+                sub_sum = group_items[j].sum()
+                if sub_sum > 0:
+                    p = 0
+                    if yValue in group_items[j].index:
+                        p = group_items[j][yValue] / sub_sum
+                    cur_ent += (p * p + (1 - p) * (1 - p)) * sub_sum / counts[i]
+            if cur_ent > max_ent:
+                max_ent = cur_ent
+                best_prop = i
+                best_threshold = 0
+
+    return best_prop, best_threshold
+
+
 class dtree():
     '''
     构造函数
@@ -92,14 +229,26 @@ class dtree():
     def __init__(self):
 
         self.tree = DTree()
-        pdata = pd.DataFrame(pd.read_csv('watermelon.csv'))
+        self.pre_pruning = 0
+        self.dict_tree = {}
+        self.post_pruning = 1
+        self.before_tree = None
+        self.after_tree = None
+        self.y_name = '好坏'
+        self.test_data = []
+        pdata = pd.DataFrame(pd.read_csv('watermelon2.csv'))
+        tdata = pd.DataFrame(pd.read_csv('watermelon2test.csv'))
+        # dd(tdata.to_dict('index'))
         data = pdata.drop(['编号'], axis=1)
-        self.build_tree(data, data['好坏'], '好瓜')
-        self.tree.list()
+        self.test_data = tdata.drop(['编号'], axis=1)
+        tree = self.build_tree(data, data['好坏'], '好瓜')
+        # self.dict_tree = tree
+        # self.tree.list()
 
     def build_tree(self, x, y, yValue):
         queue = []
-        entity = {'data': x, 'node': None, 'key': '', 'threshold': 0, 'ylabel': y.name}
+        tree = {}
+        entity = {'tree': tree, 'data': x, 'node': None, 'key': '', 'threshold': 0, 'ylabel': y.name}
         queue.append(entity)
         while queue:
             item = queue.pop(-len(queue))
@@ -107,15 +256,25 @@ class dtree():
             classes = item['data'].groupby(y.name).size()
             if classes.count() == 1:
                 self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+                # item['tree'][item['key']] = classes.idxmax
+                item['tree'][self.y_name] = classes.idxmax()
                 continue
                 # 结束条件2：所有样本相同属性，选择分类数多的一类作为分类
             if all(len(item['data'].groupby(i).size().index.values) == 1 for i in item['data'].columns.values):
                 self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+                # item['tree'][item['key']] = classes.idxmax
+                item['tree'][self.y_name] = classes.idxmax()
                 continue
 
+            saved_queue = None
+            if self.pre_pruning:
+                saved_queue = copy.copy(queue)
+                before_queue = copy.copy(queue)
+                self.generate_before_tree(before_queue, item, tree)
             # 信息增益选择最优属性与阈值
-            tag, threshold = self.entropy_select(item['data'], item['ylabel'], yValue)
+            tag, threshold = gini_select(item['data'], item['ylabel'], yValue)
             new_node = self.tree.put(item['node'], item['key'], tag, threshold)
+            item['tree'][tag] = {}
             # 判断是否是连续属性
             if item['data'].dtypes[tag] == 'float64':
                 tmp_data = item['data'].copy()
@@ -125,73 +284,148 @@ class dtree():
                     if not name:
                         key = '小于'
                     sub_group = group.drop([tag], axis=1)
-                    entity = {'data': sub_group, 'node': new_node, 'key': key, 'threshold': threshold, 'ylabel': y.name}
+                    item['tree'][tag][name] = {}
+                    entity = {'tree': item['tree'][tag][name], 'data': sub_group, 'node': new_node, 'key': key,
+                              'threshold': threshold, 'ylabel': y.name}
                     queue.append(entity)
             else:
                 for name, group in item['data'].groupby([tag]):
                     sub_group = group.drop([tag], axis=1)
-                    entity = {'data': sub_group, 'node': new_node, 'key': name, 'threshold': 0, 'ylabel': y.name}
+                    item['tree'][tag][name] = {}
+                    entity = {'tree': item['tree'][tag][name], 'data': sub_group, 'node': new_node, 'key': name,
+                              'threshold': 0, 'ylabel': y.name}
                     queue.append(entity)
+            if self.pre_pruning:
+                after_queue = copy.copy(queue)
+                self.generate_after_tree(after_queue, tree)
+                if not self.check_pruning():
+                    queue = saved_queue
+                    classes = item['data'].groupby(item['ylabel']).size()
+                    del item['tree'][tag]
+                    item['tree'][self.y_name] = classes.idxmax()
+        if self.post_pruning:  # self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+            self.dict_tree = tree
+            self.post_tree(self.dict_tree, x)
+        return tree  # self.predict(tree)
 
+    def check_pruning(self):
+        dicts = self.test_data.to_dict('index')
+        before_right = 0
+        after_right = 0
+        for i in dicts:
+            if tree_predict(self.before_tree, dicts[i]) == dicts[i][self.y_name]:
+                before_right += 1
+            if tree_predict(self.after_tree, dicts[i]) == dicts[i][self.y_name]:
+                after_right += 1
+        return after_right >= before_right
 
-    def entropy_select(self, data, yLabel, yValue):
-        # 分离散和连续型分别计算信息增益，选择最大的一个
-        max_ent = -10000
-        keys = data.columns.tolist()
-        keys.remove(yLabel)
-        for i in keys:
-            if data.dtypes[i] == 'float64':
-                tmax_ent = -10000
-                list_data = data.copy()
-                xlist = list_data[i].values
-                xlist.sort()
-                # 连续型求出相邻大小值的平局值作为待选的最佳阈值
-                for j in range(0, len(xlist) - 1):
-                    xlist[j] = (xlist[j + 1] + xlist[j]) / 2
-                for j in range(0, len(xlist) - 1):
-                    if i and xlist[j] == xlist[j - 1]:
-                        continue
-                    tmp_data = data.copy()
-                    tmp_data[i] = (tmp_data[i] - xlist[j]) > 0
-                    counts = tmp_data.count()
-                    cur_ent = 0
-                    group_items = tmp_data.groupby([i, yLabel]).size()
-                    # dd(group_items)
-                    for k in group_items.index.levels[0]:
-                        sub_sum = group_items[k].sum()
-                        if sub_sum > 0:
-                            p = 0
-                            if yValue in group_items[k].index:
-                                p = group_items[k][yValue] / sub_sum
-                            lo = sub_sum / counts[i]
-                            cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
-                                                                                          2)) * sub_sum / counts[i]
-                    if cur_ent > tmax_ent:
-                        tmax_ent = cur_ent
-                        tmp_threshold = xlist[j]
-                if tmax_ent > max_ent:
-                    max_ent = tmax_ent
-                    bestprop = i
-                    best_threshold = tmp_threshold
-            else:
-                # 直接统计并计算
-                cur_ent = 0
-                counts = data.count()
-                group_items = data.groupby([i, yLabel]).size()
-                for j in group_items.index.levels[0]:
-                    sub_sum = group_items[j].sum()
-                    if sub_sum > 0:
-                        p = 0
-                        if yValue in group_items[j].index:
-                            p = group_items[j][yValue] / sub_sum
-                        cur_ent += (p * math.log(p + 0.00001, 2) + (1 - p) * math.log(1 - p + 0.00001,
-                                                                                      2)) * sub_sum / counts[i]
-                if cur_ent > max_ent:
-                    max_ent = cur_ent
-                    bestprop = i
-                    best_threshold = 0
+    # def predict(self, tree):
+    #     dicts = self.test_data.to_dict('index')
+    #     before_right = 0
+    #     after_right = 0
+    #     for i in dicts:
+    #         if tree_predict(tree, dicts[i]) == dicts[i][self.y_name]:
+    #             before_right += 1
+    #         if self.after_tree.predict(dicts[i]) == dicts[i][self.y_name]:
+    #             after_right += 1
+    #     return after_right >= after_right
 
-        return bestprop, best_threshold
+    def generate_before_tree(self, queue, entity, tree):
+        queue.insert(0, entity)
+        while queue:
+            item = queue.pop(-len(queue))
+            classes = item['data'].groupby(item['ylabel']).size()
+            # self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+            item['tree'][self.y_name] = classes.idxmax()
+        self.before_tree = copy.deepcopy(tree)
+        clean_tree(tree)
+
+    def generate_after_tree(self, queue, tree):
+        while queue:
+            item = queue.pop(-len(queue))
+            classes = item['data'].groupby(item['ylabel']).size()
+            # self.tree.put(item['node'], item['key'], classes.idxmax(), item['threshold'])
+            item['tree'][self.y_name] = classes.idxmax()
+        self.after_tree = copy.deepcopy(tree)
+        clean_tree(tree)
+
+    def post_tree(self, tree, data, parent_tree=None):
+        if type(tree) == dict:
+            i = 0
+            for key in tree:
+                if tree[key].get(self.y_name, 0):
+                    i = i + 1
+                else:
+                    if key not in data.columns:
+                        pick_index = []
+                        for v in data.index:
+                            if key in data.ix[v].values:
+                                pick_index.append(v)
+                        self.post_tree(tree[key], data.ix[pick_index, :], tree)
+                    else:
+                        self.post_tree(tree[key], data, tree)
+                    if (key in tree.keys()) and tree[key].get(self.y_name, 0):
+                        i = i + 2
+
+            if len(tree) == i and i > 1:
+                key_counts = {}
+                for key in tree:
+                    key_counts[key] = 0
+                    for j in data.index:
+                        if key in data.ix[j].values:
+                            key_counts[key] += 1
+                best_key = min(key_counts, key=key_counts.get)
+                saved_tree = copy.deepcopy(self.dict_tree)
+                saved_parent_tree = copy.deepcopy(parent_tree)
+                parent_tree.clear()
+                parent_tree.update(tree[best_key])
+                dicts = self.test_data.to_dict('index')
+                before_right = 0
+                after_right = 0
+                for k in dicts:
+                    if tree_predict(saved_tree, dicts[k]) == dicts[k][self.y_name]:
+                        before_right += 1
+                    if tree_predict(self.dict_tree, dicts[k]) == dicts[k][self.y_name]:
+                        after_right += 1
+                if after_right <= before_right:
+                    parent_tree.clear()
+                    for key in saved_parent_tree:
+                        parent_tree[key] = tree
+
 
 
 link = dtree()
+
+
+# def calcGini(dataSet):
+#     numEntries = len(dataSet)
+#     labelCounts = {}
+#     # 给所有可能分类创建字典
+#     for featVec in dataSet:
+#         currentLabel = featVec[-1]
+#         if currentLabel not in labelCounts.keys():
+#             labelCounts[currentLabel] = 0
+#         labelCounts[currentLabel] += 1
+#     Gini = 1.0
+#     # 以2为底数计算香农熵
+#     for key in labelCounts:
+#         prob = float(labelCounts[key]) / numEntries
+#         Gini -= prob * prob
+#     return Gini
+
+# 计算数据集的香农熵
+# def calcShannonEnt(dataSet):
+#     numEntries=len(dataSet)
+#     labelCounts={}
+#     #给所有可能分类创建字典
+#     for featVec in dataSet:
+#         currentLabel=featVec[-1]
+#         if currentLabel not in labelCounts.keys():
+#             labelCounts[currentLabel]=0
+#         labelCounts[currentLabel]+=1
+#     shannonEnt=0.0
+#     #以2为底数计算香农熵
+#     for key in labelCounts:
+#         prob = float(labelCounts[key])/numEntries
+#         shannonEnt-=prob*log(prob,2)
+#     return shannonEnt
