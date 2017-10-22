@@ -1,0 +1,98 @@
+import numpy as np
+from pandas import Series, DataFrame
+from sklearn.feature_extraction import DictVectorizer
+from sklearn import preprocessing
+from sklearn import svm
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def make_meshgrid(x, y, h=.04):
+    """Create a mesh of points to plot in
+    
+    :param x: data to base x-axis meshgrid on
+    :param y: data to base y-axis meshgrid on
+    :param h: stepsize for meshgrid, optional 
+    :return: xx, yy : ndarray
+    """
+    x_min, x_max = x.min() - 0.1, x.max() + 0.1
+    y_min, y_max = y.min() - 0.01, y.max() + 0.01
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h)
+                         )
+    return xx, yy
+
+
+def plot_contours(ax, clf, xx, yy, **params):
+    """
+     Plot the decision boundaries for a classifier
+    :param ax: matplotlib axes object
+    :param clf: a classifier
+    :param xx: meshgrid ndarray
+    :param yy: meshgrid ndarray
+    :param params: dictinary of params to pass to contourf, optional
+    :return:
+    """
+    z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+    z = z.reshape(xx.shape)
+    out = ax.contourf(xx, yy, z, **params)
+    return out
+
+
+def dd(data):
+    print(data)
+    # print('\n'.join(['%s:%s' % item for item in data.__dict__.items()])
+    exit(0)
+
+
+pdata = pd.DataFrame(pd.read_csv('watermelon3.csv'))
+data = pdata.drop(['编号', '好坏'], axis=1)
+# y_dict = pd.DataFrame(pdata['好坏']).to_dict('records')
+# vec = DictVectorizer(sparse=False, sort=False)
+# y_binary = vec.fit_transform(y_dict)
+ylist = pdata['好坏'].values
+j = 0
+while j < len(ylist):
+    if ylist[j] == '好瓜':
+        ylist[j] = 1
+    else:
+        ylist[j] = 0
+    j += 1
+y = ylist.tolist()
+x = data.values
+# y = ylist.reshape(17,1)
+
+C = 1.0
+
+models = (svm.SVC(kernel='linear', C=60),
+          svm.LinearSVC(C=60),
+          svm.SVC(kernel='rbf', gamma=100, C=1),
+          # svm.SVC(kernel='rbf'),
+          svm.SVC(kernel='poly', degree=2, C=6000),
+          # svm.SVC(kernel='poly')
+          )
+models = (clf.fit(x, y) for clf in models)
+
+# title for the plots
+titles = ('SVC with linear kernel',
+          'LinearSVC (linear kernel)',
+          'SVC with RBF kernel',
+          'SVC with polynomial (degree 3) kernel')
+
+fig, sub = plt.subplots(2, 2)
+
+plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+x0, x1 = x[:, 0], x[:, 1]
+xx, yy = make_meshgrid(x0, x1)
+
+for clf, title, ax in zip(models, titles, sub.flatten()):
+    plot_contours(ax, clf, xx, yy,
+                  cmap=plt.cm.coolwarm, alpha=0.8)
+    ax.scatter(x0, x1, c=y, cmap=plt.cm.coolwarm)
+    ax.set_xlim(xx.min(), xx.max())
+    ax.set_ylim(yy.min(), yy.max())
+    ax.set_xticks(())
+    ax.set_yticks(())
+    ax.set_title(title)
+plt.show()
