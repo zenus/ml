@@ -97,6 +97,43 @@ class DTree:
                     return node.value
 
 
+def logistic_regression(x, y):
+    b = np.zeros(x.shape[1] + 1)
+    col = np.ones(x.shape[0])
+    x = np.c_[x, col]
+    old_l = 0
+    n = 0
+    while True:
+        cur_l = 0
+        y_count = 0
+        bx = np.zeros((x.shape[0], 1))
+        for i in range(0, x.shape[0]):
+            bx[i] = np.dot(b, x[i, :])
+            cur_l += ((-y[i] * bx[i]) + np.log1p(1 + np.exp(bx[i])))
+            if y[i] == 1:
+                y_count += 1
+        if abs((cur_l - old_l)) < 0.01:
+            break
+        n += 1
+        old_l = cur_l
+        d1 = 0
+        d2 = 0
+        p1 = np.zeros((x.shape[0], 1))
+        for i in range(0, x.shape[0]):
+            p1[i] = 1 - 1 / (1 + np.exp(bx[i]))
+            d1 = d1 - x[i, :] * (y[i] - p1[i])
+            d2 = d2 + np.dot(x[i, :], x[i, :].T) * p1[i] * (1 - p1[i])
+        b = b - d1 / d2
+    right_count = 0
+    for i in range(0, x.shape[0]):
+        predict_y_rate = np.exp(np.dot(b, x[i, :])) * y_count / (y.shape[0] - y_count)
+        if predict_y_rate > 0.5 and y[i]:
+            right_count += 1
+        if predict_y_rate < 0.5 and y[i] == 0:
+            right_count += 1
+    return right_count
+
+
 # 决策树生成类
 def entropy_select(data, yLabel, yValue):
     # 分离散和连续型分别计算信息增益，选择最大的一个
@@ -218,6 +255,67 @@ def gini_select(data, yLabel, yValue):
     return best_prop, best_threshold
 
 
+# 决策树生成类
+def logistic_regression_select(data, yLabel, yValue):
+    # 分离散和连续型分别计算信息增益，选择最大的一个
+    max_ent = -10000
+    keys = data.columns.tolist()
+    best_prop = 0
+    best_threshold = 0
+    keys.remove(yLabel)
+    list_data = data.copy()
+    ylist = list_data[yLabel].values
+    j = 0
+    while j < len(ylist):
+        if ylist[j] == yValue:
+            ylist[j] = 1
+        else:
+            ylist[j] = 0
+        j += 1
+    ylist = ylist.reshape(len(ylist), 1)
+    for i in keys:
+        if data.dtypes[i] == 'float64':
+            tmax_ent = -10000
+            # list_data = data.copy()
+            xlist = list_data[i].values
+            # ylist = list_data[yLabel].values
+            # j = 0
+            # while j < len(ylist):
+            #     if ylist[j] == yValue:
+            #         ylist[j] = 1
+            #     else:
+            #         ylist[j] = 0
+            #     j += 1
+            # ylist = ylist.reshape(len(ylist), 1)
+            xlist = xlist.reshape(len(xlist), 1)
+            tmax_ent = logistic_regression(xlist, ylist)
+            if tmax_ent > max_ent:
+                max_ent = tmax_ent
+                best_prop = i
+                best_threshold = 0
+        else:
+            # 直接统计并计算
+            # xlist = np.
+            group_items = data.groupby([i]).size()
+            xlist = np.zeros((len(data[i]), len(group_items.index)))
+            x_set = {}
+            k = 0
+            for v in group_items.index:
+                x_set[v] = k
+                k += 1
+            kk = 0
+            for j in data[i].values:
+                xlist[kk, x_set[j]] = 1
+                kk += 1
+            cur_ent = logistic_regression(xlist, ylist)
+            if cur_ent > max_ent:
+                max_ent = cur_ent
+                best_prop = i
+                best_threshold = 0
+
+    return best_prop, best_threshold
+
+
 class dtree():
     '''
     构造函数
@@ -242,6 +340,7 @@ class dtree():
         data = pdata.drop(['编号'], axis=1)
         self.test_data = tdata.drop(['编号'], axis=1)
         tree = self.build_tree(data, data['好坏'], '好瓜')
+        dd(tree)
         # self.dict_tree = tree
         # self.tree.list()
 
@@ -272,7 +371,8 @@ class dtree():
                 before_queue = copy.copy(queue)
                 self.generate_before_tree(before_queue, item, tree)
             # 信息增益选择最优属性与阈值
-            tag, threshold = gini_select(item['data'], item['ylabel'], yValue)
+            # tag, threshold = gini_select(item['data'], item['ylabel'], yValue)
+            tag, threshold = logistic_regression_select(item['data'], item['ylabel'], yValue)
             new_node = self.tree.put(item['node'], item['key'], tag, threshold)
             item['tree'][tag] = {}
             # 判断是否是连续属性
@@ -391,7 +491,6 @@ class dtree():
                     parent_tree.clear()
                     for key in saved_parent_tree:
                         parent_tree[key] = tree
-
 
 
 link = dtree()
