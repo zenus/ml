@@ -9,6 +9,6 @@ snippets of codes while i'm reading machine learn
 ## decisionTree
 ![image](https://github.com/zenus/ml/blob/master/images/Figure_1-3.png)
 ## svm
-![image](https://github.com/zenus/ml/blob/master/images/Figure_1-3.png)
+![image](https://github.com/zenus/ml/blob/master/images/Figure_1-4.png)
 
 
