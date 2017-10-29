@@ -1,0 +1,44 @@
+import numpy as np
+from pandas import Series, DataFrame
+import pandas as pd
+import copy
+import math
+
+
+
+def dd(data):
+    print(data)
+    # print('\n'.join(['%s:%s' % item for item in data.__dict__.items()])
+    exit(0)
+
+
+y_label = '好坏'
+pdata = pd.DataFrame(pd.read_csv('watermelon.csv'))
+data = pdata.drop(['编号'], axis=1)
+result = {}
+test_data = {'编号': 1, '色泽': '青绿', '根蒂': '蜷缩', '敲声': '浊响', '纹理': '清晰', '脐部': '凹陷', '触感': '硬滑', '密度': 0.6970000000000001, '含糖率': 0.46, '好坏': '好瓜'}
+for col in data.columns:
+    if col != y_label:
+        if data.dtypes[col] != 'float64':
+            group_items = data.groupby([y_label, col]).size()
+            for j in group_items.index.levels[0]:
+                sub_sum = group_items[j].sum()
+                p = (group_items[j][test_data[col]] + 1) / (sub_sum + len(group_items[j].index))
+                if j in result.keys():
+                    result[j] = result[j] * p
+                else:
+                    result[j] = p
+        else:
+            # avg = data[col].mean()
+            # var = data[col].var()
+            group_items = data.groupby([y_label]).size()
+            for j in group_items.index:
+                sub_data = data.ix[data[y_label] == j, col]
+                avg = sub_data.mean()
+                var = sub_data.var()
+                p = (1 / math.sqrt(2 * math.pi) * var) * math.exp(-math.pow(test_data[col] - avg, 2) / 2 * math.pow(var, 2))
+                if j in result.keys():
+                    result[j] = result[j] * p
+                else:
+                    result[j] = p
+dd(result)
