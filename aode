@@ -1,0 +1,50 @@
+import numpy as np
+from pandas import Series, DataFrame
+import pandas as pd
+import copy
+import math
+
+
+def dd(data):
+    print(data)
+    # print('\n'.join(['%s:%s' % item for item in data.__dict__.items()])
+    exit(0)
+
+
+y_label = '好坏'
+pdata = pd.DataFrame(pd.read_csv('watermelon.csv'))
+data = pdata.drop(['编号'], axis=1)
+result = {}
+test_data = {'编号': 1, '色泽': '青绿', '根蒂': '蜷缩', '敲声': '浊响', '纹理': '清晰', '脐部': '凹陷', '触感': '硬滑', '密度': 0.6970000000000001,
+             '含糖率': 0.46, '好坏': '好瓜'}
+for col in data.columns:
+    group_items = data.groupby([y_label, col]).size()
+    if col != y_label:
+        if data.dtypes[col] != 'float64':
+            D = len(data[col])
+            group_items = data.groupby([y_label, col]).size()
+            N = len(group_items.index.levels[0])
+            for j in group_items.index.levels[0]:
+                Ni = len(group_items[j].index)
+                Dcx = group_items[j][test_data[col]]
+                Pcx = (Dcx + 1) / (D + N * Ni)
+                sub_data = data.ix[data[col] == test_data[col], :]
+                sub_data = sub_data.ix[data[y_label] == j, :]
+                pcxx = 1
+                for sub_col in sub_data.columns:
+                    if col != sub_col:
+                        if sub_data.dtypes[sub_col] != 'float64':
+                            sub_group_items = sub_data.groupby([sub_col]).size()
+                            group_data_items = data.groupby([sub_col]).size()
+                            Nij = len(group_data_items.index)
+                            if test_data[sub_col] in sub_group_items:
+                                Dcxx = sub_group_items[test_data[sub_col]]
+                            else:
+                                Dcxx = 0
+                            pcxx *= (Dcxx + 1) / (Dcx + Nij)
+                Pcx *= pcxx
+                if j in result.keys():
+                    result[j] += Pcx
+                else:
+                    result[j] = Pcx
+dd(result)
